@@ -19,6 +19,7 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "dependencies": {
+    "sharp": "0.34.5",
     "typebox": "*"
   },
   "devDependencies": {

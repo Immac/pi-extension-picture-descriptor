@@ -68,6 +68,7 @@ import {
   buildPrompts,
   describeImage,
   TIERS,
+  FOCUS_MODES,
 } from "../src/picture-descriptor.js";
 import type { Model } from "@earendil-works/pi-ai";
 
@@ -86,6 +87,16 @@ describe("TIERS", () => {
       provider: "opencode-go",
       model: "qwen3.5-plus",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FOCUS_MODES
+// ---------------------------------------------------------------------------
+
+describe("FOCUS_MODES", () => {
+  it("has four focus modes", () => {
+    expect(FOCUS_MODES).toEqual(["general", "ui-ux", "diff", "state"]);
   });
 });
 
@@ -204,6 +215,48 @@ describe("tryParseStructured", () => {
     expect(result!.objects).toEqual([]);
     expect(result!.texts).toEqual([]);
   });
+
+  it("passes through elements, layout, and issues from ui-ux structured output", () => {
+    const input = JSON.stringify({
+      elements: [
+        { type: "button", name: "Submit", position: "bottom", state: "enabled" },
+      ],
+      layout: { structure: "single-column", spacing: "balanced", alignment: "center" },
+      issues: [
+        { severity: "minor", type: "contrast", description: "Low contrast" },
+      ],
+      texts: [{ content: "Hello", location: "header" }],
+    });
+
+    const result = tryParseStructured(input);
+    expect(result).not.toBeNull();
+    expect(result!.elements).toHaveLength(1);
+    expect(result!.elements![0]).toMatchObject({ type: "button", name: "Submit" });
+    expect(result!.layout).toMatchObject({ structure: "single-column" });
+    expect(result!.issues).toHaveLength(1);
+    expect(result!.issues![0]).toMatchObject({ severity: "minor", type: "contrast" });
+    expect(result!.texts).toHaveLength(1);
+    expect(result!.texts[0]).toMatchObject({ content: "Hello" });
+  });
+
+  it("defaults to empty objects/texts when ui-ux fields are absent", () => {
+    const input = JSON.stringify({ elements: [], layout: {}, texts: [] });
+    const result = tryParseStructured(input);
+    expect(result).not.toBeNull();
+    expect(result!.objects).toEqual([]);
+    expect(result!.texts).toEqual([]);
+    expect(result!.elements).toEqual([]);
+    expect(result!.layout).toEqual({});
+    // issues should not be present
+    expect(result!.issues).toBeUndefined();
+  });
+
+  it("still extracts objects+texts from markdown code block", () => {
+    const input = 'Response:\n```json\n{"objects":[{"name":"cat"}],"texts":[]}\n```';
+    const result = tryParseStructured(input);
+    expect(result).not.toBeNull();
+    expect(result!.objects).toEqual([{ name: "cat" }]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -244,17 +297,79 @@ describe("buildPrompts", () => {
       const { systemPrompt } = buildPrompts("natural");
       expect(systemPrompt).toContain("no JSON formatting");
     });
+
+    it("default general focus matches natural default", () => {
+      const { systemPrompt } = buildPrompts("natural", undefined, undefined, "general");
+      expect(systemPrompt).toContain("expert image analyst");
+      expect(systemPrompt).toContain("Describe the image in detail");
+    });
+  });
+
+  describe("ui-ux focus (natural)", () => {
+    it("uses UX/UI engineer persona", () => {
+      const { systemPrompt, userPrompt } = buildPrompts("natural", undefined, undefined, "ui-ux");
+      expect(systemPrompt).toContain("UX/UI engineer");
+      expect(systemPrompt).toContain("Layout structure");
+      expect(systemPrompt).toContain("Spacing & alignment");
+      expect(systemPrompt).toContain("Text & readability");
+      expect(systemPrompt).toContain("Usability issues");
+      expect(userPrompt).toContain("screenshot as a UI/UX engineer");
+    });
+
+    it("includes language and hint context", () => {
+      const { systemPrompt } = buildPrompts("natural", "Spanish", "game UI", "ui-ux");
+      expect(systemPrompt).toContain("Use Spanish for the output");
+      expect(systemPrompt).toContain("Context hint: game UI");
+      expect(systemPrompt).toContain("UX/UI engineer");
+    });
+  });
+
+  describe("diff focus (natural)", () => {
+    it("analyzes visual diffs", () => {
+      const { systemPrompt, userPrompt } = buildPrompts("natural", undefined, undefined, "diff");
+      expect(systemPrompt).toContain("visual diff image");
+      expect(systemPrompt).toContain("Changed regions");
+      expect(systemPrompt).toContain("State transitions");
+      expect(userPrompt).toContain("What changed between the two screenshots");
+    });
+  });
+
+  describe("state focus (natural)", () => {
+    it("detects application state", () => {
+      const { systemPrompt, userPrompt } = buildPrompts("natural", undefined, undefined, "state");
+      expect(systemPrompt).toContain("Application state");
+      expect(systemPrompt).toContain("UI readiness");
+      expect(systemPrompt).toContain("Navigation context");
+      expect(userPrompt).toContain("What state is the application in");
+    });
   });
 
   describe("structured format", () => {
     it("returns prompts asking for JSON", () => {
       const { systemPrompt, userPrompt } = buildPrompts("structured");
       expect(systemPrompt).toContain("Return ONLY valid JSON");
-      expect(userPrompt).toContain("List all visible objects and text");
+      expect(systemPrompt).toContain("objects");
+      expect(systemPrompt).toContain("texts");
     });
 
-    it("includes the JSON schema in system prompt", () => {
+    it("includes the JSON schema with objects and texts", () => {
       const { systemPrompt } = buildPrompts("structured");
+      expect(systemPrompt).toContain('"objects"');
+      expect(systemPrompt).toContain('"texts"');
+    });
+
+    it("uses UI-ux schema when combined with ui-ux focus", () => {
+      const { systemPrompt } = buildPrompts("structured", undefined, undefined, "ui-ux");
+      expect(systemPrompt).toContain('"elements"');
+      expect(systemPrompt).toContain('"layout"');
+      expect(systemPrompt).toContain('"issues"');
+      expect(systemPrompt).toContain('"texts"');
+      // Should NOT contain the default objects schema
+      expect(systemPrompt).not.toContain('"depth": "foreground|middle|background"');
+    });
+
+    it("uses default objects schema for non-ui-ux focus", () => {
+      const { systemPrompt } = buildPrompts("structured", undefined, undefined, "diff");
       expect(systemPrompt).toContain('"objects"');
       expect(systemPrompt).toContain('"texts"');
     });
