@@ -77,15 +77,23 @@ import type { Model } from "@earendil-works/pi-ai";
 // ---------------------------------------------------------------------------
 
 describe("TIERS", () => {
-  it("has three tiers with provider and model", () => {
+  it("has five tiers with provider and model", () => {
     expect(TIERS.local).toEqual({ provider: "llamaswap", model: "gemma4" });
     expect(TIERS["remote-free"]).toEqual({
       provider: "github-copilot",
       model: "gpt-5-mini",
     });
-    expect(TIERS["remote-paid"]).toEqual({
+    expect(TIERS["remote-cheap"]).toEqual({
       provider: "opencode-go",
-      model: "qwen3.5-plus",
+      model: "mimo-v2.5",
+    });
+    expect(TIERS["remote-ux"]).toEqual({
+      provider: "opencode-go",
+      model: "kimi-k2.5",
+    });
+    expect(TIERS["remote-general"]).toEqual({
+      provider: "opencode-go",
+      model: "qwen3.6-plus",
     });
   });
 });

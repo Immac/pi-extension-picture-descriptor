@@ -5,10 +5,12 @@
  * models go through the same path — `createAgentSession` with a resolved
  * model from pi's model registry.
  *
- * Three tiers:
- *   local        llamaswap/gemma4           (free, local, no API key)
- *   remote-free  github-copilot/gpt-5-mini  (free remote tier)
- *   remote-paid  opencode-go/qwen3.5-plus   (paid remote tier)
+ * Five tiers:
+ *   local          llamaswap/gemma4                (free, local, no API key)
+ *   remote-free    github-copilot/gpt-5-mini       (free remote tier)
+ *   remote-cheap   opencode-go/mimo-v2.5           (generous rate limit, experimental edge)
+ *   remote-ux      opencode-go/kimi-k2.5           (best for UI/UX screenshot analysis)
+ *   remote-general opencode-go/qwen3.6-plus        (best all-around quality)
  *
  * Two output formats:
  *   "natural"    — narrative text description
@@ -41,9 +43,11 @@ import type { Model } from "@earendil-works/pi-ai";
 // ---------------------------------------------------------------------------
 
 export const TIERS = {
-  "local":       { provider: "llamaswap",     model: "gemma4" },
-  "remote-free": { provider: "github-copilot", model: "gpt-5-mini" },
-  "remote-paid": { provider: "opencode-go",   model: "qwen3.5-plus" },
+  "local":          { provider: "llamaswap",     model: "gemma4" },
+  "remote-free":    { provider: "github-copilot", model: "gpt-5-mini" },
+  "remote-cheap":   { provider: "opencode-go",   model: "mimo-v2.5" },
+  "remote-ux":      { provider: "opencode-go",   model: "kimi-k2.5" },
+  "remote-general": { provider: "opencode-go",   model: "qwen3.6-plus" },
 } as const satisfies Record<string, { provider: string; model: string }>;
 
 const DEFAULT_TIER = "local";
@@ -440,8 +444,10 @@ export default function (pi: ExtensionAPI) {
     description:
       `Analyze images, screenshots, and visual diffs using a vision-capable pi sub-agent. ` +
       `Four focus modes: general (default), ui-ux, diff, state. ` +
-      `Three tiers: local (llamaswap/gemma4), remote-free (github-copilot/gpt-5-mini), ` +
-      `remote-paid (opencode-go/qwen3.5-plus). ` +
+      `Five tiers: local (llamaswap/gemma4), remote-free (github-copilot/gpt-5-mini), ` +
+      `remote-cheap (opencode-go/mimo-v2.5 — generous rate limit, experimental edge), ` +
+      `remote-ux (opencode-go/kimi-k2.5 — best for UI/UX screenshot analysis), ` +
+      `remote-general (opencode-go/qwen3.6-plus — best all-around quality). ` +
       `Two formats: "natural" (narrative text) or "structured" (JSON elements/issues).`,
 
     promptSnippet:
@@ -450,13 +456,13 @@ export default function (pi: ExtensionAPI) {
     promptGuidelines: [
       "Use picture-describe when you need to analyze or describe an image — especially for screenshot-based debugging.",
       "All providers go through pi's model registry — configure providers in ~/.pi/agent/models.json.",
-      "Tiers: local (llamaswap/gemma4), remote-free (github-copilot/gpt-5-mini), remote-paid (opencode-go/qwen3.5-plus).",
+      "Tiers: local (llamaswap/gemma4), remote-free (github-copilot/gpt-5-mini), remote-cheap (opencode-go/mimo-v2.5), remote-ux (opencode-go/kimi-k2.5), remote-general (opencode-go/qwen3.6-plus).",
       "Use format='structured' for JSON output, focus='ui-ux' for UI element and issue detection.",
       "Use the 'focus' parameter for built-in prompt presets: focus='ui-ux' (screenshot/UI analysis), focus='diff' (visual diff analysis), focus='state' (app state detection), focus='general' (default, generic description).",
       "The 'request' parameter overrides the default prompt entirely — use for customized analysis needs beyond the focus presets.",
       "The 'hint' parameter provides lightweight context (e.g., 'game UI screenshot', 'settings panel') — use when focus is enough but needs scene context.",
       "For full debug workflow: gui_capture → picture-describe(focus='ui-ux') → fix code → gui_capture → gui_diff → picture-describe(focus='diff').",
-      "gemma4 (local tier) is acceptable for layout and element detection but may struggle with precise pixel coordinates or very small fonts — use remote-free or remote-paid for higher fidelity OCR.",
+      "gemma4 (local tier) is acceptable for layout and element detection but may struggle with precise pixel coordinates or very small fonts — use remote-free, remote-ux, or remote-general for higher fidelity OCR.",
       "Images are auto-resized to 1024px (~1MP) on the longest side by default. Use max_size=0 to send full original resolution, or max_size=N for a custom limit.",
     ],
 
@@ -492,7 +498,7 @@ export default function (pi: ExtensionAPI) {
       tier: Type.Optional(
         Type.String({
           description:
-            'Model tier: "local" (llamaswap/gemma4), "remote-free" (github-copilot/gpt-5-mini), "remote-paid" (opencode-go/qwen3.5-plus). Default: "local".',
+            'Model tier: "local" (llamaswap/gemma4), "remote-free" (github-copilot/gpt-5-mini), "remote-cheap" (opencode-go/mimo-v2.5 — generous rate limit, experimental edge), "remote-ux" (opencode-go/kimi-k2.5 — best for UI/UX screenshot analysis), "remote-general" (opencode-go/qwen3.6-plus — best all-around quality). Default: "local".',
         }),
       ),
 
