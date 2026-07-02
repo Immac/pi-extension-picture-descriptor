@@ -1,7 +1,7 @@
 {
   "name": "picture-descriptor",
   "version": "0.2.0",
-  "description": "Describes images using AI via sub-agent sessions. Tiers: local (llamaswap/gemma4), remote-free (github-copilot/gpt-5-mini), remote-paid (opencode-go/qwen3.5-plus). Formats: natural or structured JSON.",
+  "description": "Describes images using AI via sub-agent sessions. Tiers: local (llamaswap/gemma4), remote-free (github-copilot/gpt-5-mini), remote-cheap (opencode-go/mimo-v2.5), remote-ux (opencode-go/kimi-k2.5), remote-general (opencode-go/qwen3.6-plus). Formats: natural or structured JSON.",
   "type": "module",
   "keywords": [
     "pi-package",

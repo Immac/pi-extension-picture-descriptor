@@ -91,7 +91,7 @@ export function getMimeType(filePath: string): string {
  * Read an image file from disk, optionally resize it, and encode as base64.
  *
  * @param path - Path to the image file.
- * @param maxSize - Max pixel dimension on the longest side (0 = no resize, default 1280).
+ * @param maxSize - Max pixel dimension on the longest side (0 = no resize, default 1024).
  *                  For UI screenshots this saves bandwidth and speeds up the vision call.
  */
 export async function encodeImage(
@@ -451,10 +451,12 @@ export default function (pi: ExtensionAPI) {
       `Two formats: "natural" (narrative text) or "structured" (JSON elements/issues).`,
 
     promptSnippet:
-      "Analyze images, screenshots, UI/UX mockups, and visual diffs using a vision-capable pi sub-agent — local gemma4 by default. Use focus='ui-ux' for screenshot debugging, focus='diff' for before/after comparison, focus='state' for app state detection.",
+      "Analyze images, screenshots, UI/UX mockups, and visual diffs using a vision-capable pi sub-agent — for non-vision models only. Use focus='ui-ux' for screenshot debugging, focus='diff' for before/after comparison, focus='state' for app state detection.",
 
     promptGuidelines: [
-      "Use picture-describe when you need to analyze or describe an image — especially for screenshot-based debugging.",
+      "Do NOT use picture-describe if the current model supports vision (input includes 'image') — just paste the image directly. picture-describe is for non-vision models to analyze images via a sub-agent.",
+      "Use picture-describe when you need to analyze or describe an image AND the current model does NOT support vision — especially for screenshot-based debugging.",
+      "Use force=true on picture-describe to bypass the vision-model check and always delegate to a sub-agent (e.g., to use a specific vision model).",
       "All providers go through pi's model registry — configure providers in ~/.pi/agent/models.json.",
       "Tiers: local (llamaswap/gemma4), remote-free (github-copilot/gpt-5-mini), remote-cheap (opencode-go/mimo-v2.5), remote-ux (opencode-go/kimi-k2.5), remote-general (opencode-go/qwen3.6-plus).",
       "Use format='structured' for JSON output, focus='ui-ux' for UI element and issue detection.",
@@ -553,6 +555,13 @@ export default function (pi: ExtensionAPI) {
           maximum: 10,
         }),
       ),
+
+      force: Type.Optional(
+        Type.Boolean({
+          description:
+            "Force picture-describe even if the current model supports vision. Default: false. Use when you explicitly want to delegate to a different vision model.",
+        }),
+      ),
     }),
 
     async execute(
@@ -569,11 +578,36 @@ export default function (pi: ExtensionAPI) {
         hint?: string;
         max_size?: number;
         concurrency?: number;
+        force?: boolean;
       },
       signal: AbortSignal | undefined,
       onUpdate: ((partialResult: AgentToolResult<{}>) => void) | undefined,
       ctx: ExtensionContext,
     ) {
+      // --- Vision model check ---
+      const callingModel = ctx.model;
+      const callingModelSupportsVision =
+        callingModel?.input?.includes("image") ?? false;
+
+      if (callingModelSupportsVision && !params.force) {
+        const modelName = callingModel
+          ? `${callingModel.provider}/${callingModel.id}`
+          : "your current model";
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                `⚠️ ${modelName} already supports vision — you don't need picture-describe.\n\n` +
+                `Just paste the image directly and analyze it yourself. picture-describe is designed ` +
+                `for models that can't see images — it delegates to a separate vision sub-agent.\n\n` +
+                `If you still want to use a different vision model, set force=true.`,
+            },
+          ],
+          details: { skipped: true, reason: "calling model has vision" },
+        };
+      }
+
       // --- Normalise inputs ---
       const imagePaths =
         typeof params.images === "string" ? [params.images] : params.images;
