@@ -245,7 +245,7 @@ extension_creator mode=install path=./picture-descriptor
 cd picture-descriptor
 npm install
 npm run validate    # TypeScript check
-npm test           # Run tests (41 tests)
+npm test           # Run tests (47 tests)
 npm run test:watch # Watch mode
 ```
 

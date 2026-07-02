@@ -223,6 +223,43 @@ function normalizeStructured(parsed: Record<string, unknown>): StructuredResult 
 }
 
 // ---------------------------------------------------------------------------
+// Vision model check — extracted for testability
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if the calling model already supports vision and should skip picture-describe.
+ * Returns a result object if the tool should be skipped, or null if it should proceed.
+ */
+export function checkVisionModel(
+  model: { provider?: string; id?: string; input?: string[] } | undefined,
+  force: boolean | undefined,
+): { skip: true; content: AgentToolResult<{}>["content"]; details: Record<string, unknown> } | null {
+  if (force) return null;
+
+  const supportsVision = model?.input?.includes("image") ?? false;
+  if (!supportsVision) return null;
+
+  const modelName = model?.provider && model?.id
+    ? `${model.provider}/${model.id}`
+    : "your current model";
+
+  return {
+    skip: true,
+    content: [
+      {
+        type: "text",
+        text:
+          `⚠️ ${modelName} already supports vision — you don't need picture-describe.\n\n` +
+          `Just paste the image directly and analyze it yourself. picture-describe is designed ` +
+          `for models that can't see images — it delegates to a separate vision sub-agent.\n\n` +
+          `If you still want to use a different vision model, set force=true.`,
+      },
+    ],
+    details: { skipped: true, reason: "calling model has vision" },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Sub-agent session — shared by all providers
 // ---------------------------------------------------------------------------
 
@@ -598,26 +635,11 @@ export default function (pi: ExtensionAPI) {
       ctx: ExtensionContext,
     ) {
       // --- Vision model check ---
-      const callingModel = ctx.model;
-      const callingModelSupportsVision =
-        callingModel?.input?.includes("image") ?? false;
-
-      if (callingModelSupportsVision && !params.force) {
-        const modelName = callingModel
-          ? `${callingModel.provider}/${callingModel.id}`
-          : "your current model";
+      const visionCheck = checkVisionModel(ctx.model, params.force);
+      if (visionCheck) {
         return {
-          content: [
-            {
-              type: "text",
-              text:
-                `⚠️ ${modelName} already supports vision — you don't need picture-describe.\n\n` +
-                `Just paste the image directly and analyze it yourself. picture-describe is designed ` +
-                `for models that can't see images — it delegates to a separate vision sub-agent.\n\n` +
-                `If you still want to use a different vision model, set force=true.`,
-            },
-          ],
-          details: { skipped: true, reason: "calling model has vision" },
+          content: visionCheck.content,
+          details: visionCheck.details,
         };
       }
 
