@@ -67,6 +67,7 @@ import {
   tryParseStructured,
   buildPrompts,
   describeImage,
+  checkVisionModel,
   TIERS,
   FOCUS_MODES,
 } from "../src/picture-descriptor.js";
@@ -391,6 +392,46 @@ describe("buildPrompts", () => {
       expect(systemPrompt).toContain("Use German for the output");
       expect(systemPrompt).toContain("Context hint: document scan");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkVisionModel
+// ---------------------------------------------------------------------------
+
+describe("checkVisionModel", () => {
+  it("returns null for non-vision model", () => {
+    const model = { provider: "ollama", id: "codellama", input: ["text"] };
+    expect(checkVisionModel(model, undefined)).toBeNull();
+  });
+
+  it("returns skip result for vision model", () => {
+    const model = { provider: "anthropic", id: "claude-sonnet-4-5", input: ["text", "image"] };
+    const result = checkVisionModel(model, undefined);
+    expect(result).not.toBeNull();
+    expect(result!.skip).toBe(true);
+    expect(result!.details.reason).toBe("calling model has vision");
+    expect(result!.content[0].text).toContain("claude-sonnet-4-5");
+  });
+
+  it("returns null when force=true even for vision model", () => {
+    const model = { provider: "anthropic", id: "claude-sonnet-4-5", input: ["text", "image"] };
+    expect(checkVisionModel(model, true)).toBeNull();
+  });
+
+  it("returns null for undefined model", () => {
+    expect(checkVisionModel(undefined, undefined)).toBeNull();
+  });
+
+  it("returns null for model without input field", () => {
+    const model = { provider: "ollama", id: "llama3" };
+    expect(checkVisionModel(model, undefined)).toBeNull();
+  });
+
+  it("uses fallback name when provider or id missing", () => {
+    const model = { input: ["text", "image"] };
+    const result = checkVisionModel(model, undefined);
+    expect(result!.content[0].text).toContain("your current model");
   });
 });
 

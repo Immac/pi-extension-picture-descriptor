@@ -38,6 +38,7 @@ Includes **four focus modes** for different analysis tasks:
 | `hint`        | `string` (optional)     | —              | Lightweight context (e.g. `"game UI screenshot"`, `"settings panel"`) |
 | `max_size`    | `number` (optional)     | `1024`         | Max pixel dimension on longest side (~1MP default). Images larger than this are resized before sending. `0` = original resolution |
 | `concurrency` | `number` (optional)     | `3`            | Batch processing concurrency |
+| `force`       | `boolean` (optional)    | `false`        | Force picture-describe even if the current model supports vision. Use to delegate to a different vision model. |
 
 ### Model Tiers
 
@@ -45,9 +46,13 @@ Includes **four focus modes** for different analysis tasks:
 |-----------------|------------------|------------------|--------|
 | `local` *(default)* | `llamaswap`   | `gemma4`         | Free, local, no API key |
 | `remote-free`   | `github-copilot` | `gpt-5-mini`     | GitHub Copilot free tier |
-| `remote-paid`   | `opencode-go`    | `qwen3.5-plus`   | OpenCode paid tier |
+| `remote-cheap`  | `opencode-go`    | `mimo-v2.5`      | Generous rate limit, experimental edge |
+| `remote-ux`     | `opencode-go`    | `kimi-k2.5`      | Best for UI/UX screenshot analysis |
+| `remote-general`| `opencode-go`    | `qwen3.6-plus`   | Best all-around quality |
 
 Override: `provider="github-copilot" model="gpt-5-mini"`.
+
+> **⚠️ Vision Model Check:** picture-describe automatically detects if your current model supports vision (has `input: ["text", "image"]`). If it does, the tool returns a warning suggesting you paste the image directly instead. Use `force=true` to bypass this check.
 
 ### Focus Modes
 
@@ -170,6 +175,9 @@ picture-describe images="/screenshot.png" focus="ui-ux" tier="remote-free"
 # Structured JSON output with UI analysis
 picture-describe images="/screenshot.png" format="structured" focus="ui-ux"
 
+# Force picture-describe even when using a vision model
+picture-describe images="/screenshot.png" force=true tier="remote-ux"
+
 # Batch process with hint
 picture-describe images=["/img1.png", "/img2.png"] hint="settings screenshots"
 
@@ -237,7 +245,7 @@ extension_creator mode=install path=./picture-descriptor
 cd picture-descriptor
 npm install
 npm run validate    # TypeScript check
-npm test           # Run tests (38 tests)
+npm test           # Run tests (47 tests)
 npm run test:watch # Watch mode
 ```
 
@@ -265,8 +273,10 @@ picture-descriptor/
   and vision capability (`"input": ["text","image"]`).
 - **Remote tiers** require the provider to be configured in pi's `auth.json`
   (and optionally `models.json`).
-- If the requested model isn't found in the registry, the tool prints a
-  helpful error with a sample config and the available tiers.
+- **Vision model check:** picture-describe automatically detects if the calling model
+  supports vision (via `ctx.model.input.includes("image")`). If it does, the tool
+  returns a warning suggesting you paste the image directly. Use `force=true` to
+  bypass this check when you explicitly want to delegate to a different vision model.
 - The sub-agent session is ephemeral — created in-memory and disposed after
   the description is collected.
 - For `format="structured"`, the tool attempts to parse the LLM response as JSON.
@@ -277,7 +287,7 @@ picture-descriptor/
   or `max_size=N` for a custom limit.
 - **gemma4 (local tier)** is acceptable for layout and element detection but may
   struggle with precise pixel coordinates or very small fonts — use `remote-free`
-  or `remote-paid` for higher fidelity OCR.
+  or `remote-ux`/`remote-general` for higher fidelity OCR.
 
 ---
 
