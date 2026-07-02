@@ -101,6 +101,14 @@ export async function encodeImage(
   const mediaType = getMimeType(path);
   const ext = path.toLowerCase().split(".").pop() || "jpg";
 
+  // Check file exists before processing
+  const { access } = await import("node:fs/promises");
+  try {
+    await access(path);
+  } catch {
+    throw new Error(`Image file not found: ${path}`);
+  }
+
   if (maxSize && maxSize > 0) {
     try {
       const sharp = await import("sharp");
@@ -121,8 +129,13 @@ export async function encodeImage(
           };
         }
       }
-    } catch {
-      // sharp not available or resize failed — fall through to original
+    } catch (err) {
+      // sharp not available or resize failed — log and fall through to original
+      if (err instanceof Error && err.message.includes("sharp")) {
+        // Sharp import failed — expected in environments without sharp
+      } else {
+        console.warn(`[picture-describe] sharp resize failed for ${path}:`, err);
+      }
     }
   }
 
